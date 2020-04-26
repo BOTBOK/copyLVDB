@@ -9,105 +9,160 @@
 #ifndef SkipList_h
 #define SkipList_h
 #include <atomic>
+#include <assert.h>
 
-template<typename Key, class Comparaor>
+template<typename Key, class Comparator>
 class SkipList
 {
 private:
     Comparaor compare_;
-   
-    SkipList(SkipList&) = delete;
-    SkipList & operator=(SkipList&) = delete;
-    
     int kMaxHeight_ = 12;
-public:
-    explicit SkipList(Comparaor comparaor):compare_(comparaor), head_(nullptr){}
-
-    int randomInt()
-    {
-        return 3;
-    }
     
-    Node * findBigerNode(Key key, Node **prve)
+    SkipList(SkipList&) = delete;
+    SkipLIst &operator=(SkipList&) = delete;
+    
+    struct Node;
+    
+    /**
+     链表（跳跃表）表头节点
+     */
+    Node *head_;
+    
+    /**
+     生成随机数
+     */
+    int randomInt();
+    
+    /**
+     找到与key值相等或者比key大的Node（恰好比key大，该node的前一个node比key小）
+     param[in]        Key key值。
+     param[out]      Node **prev 可以理解为Node* 数组，跳跃表每一层比key小的Node节点，所组成的数组
+     */
+    Node * findNodeOrGreaterNode(Key key, Node **prev);
+    
+    /**
+     新建高度为height的Node节点
+     param[in]      Key key值
+     param[in]      int height跳跃表中该节点的高度
+     */
+    Node * newNode(Key key, int height);
+    
+public:
+    
+    /**
+     初始化函数
+     param[in]  比较模版，类或者函数
+     */
+    explicit SkipList(Comparator comparator);
+    
+    /**
+     插入key
+     param[in] 插入key值
+     */
+    void Insert(Key key);
+};
+
+template<typename Key, class Comparator>
+struct SkipList<Key, Comparator>::Node
+{
+    Key key;
+    explicit Node(Key tKey):key(tKey) {};
+    Node *nextNode(int i)
     {
-        Node *next = nullptr;
-        x = head_;
-        i = kMaxHeight_;
-        while(true)
+        assert(i >= 0);
+        return next_[i].load(std::memory_order_acquire);
+    }
+    void setNextNode(Node *node, int i)
+    {
+        assert(i >= 0);
+        next_[i].store(node, std::memory_order_release);
+    }
+private:
+    std::atomic<Node*> next_[1];
+};
+
+template<typename Key, class Comparator>
+/*此处使用typename是告诉编译器Node是一个类而不是成员变量*/
+typename SkipList<Key, Comparator>::Node * SkipList<Key, Comparator>::newNode(Key key, int height)
+{
+    /**
+     没有内存池，目前直接从堆上申请内存,
+            申请内存有讲究啊，Node结构体的最后一个符号是automic<Node*>的数组，大小为1，可以看成指向automic<Node*>的指针，
+            这边在Node的基础上申请了超出height-1的std::atomic<Node*>的内存空间，将Node结构体中的automic<Node*>数组扩展，大小为height
+     */
+    void *memArea = malloc(sizeof(Node) + sizeof(std::atomic<Node*>) * (height - 1));
+    /*placement new 操作*/
+    return new (memArea) Node(key);
+}
+
+/**
+初始化函数
+param[in]  比较模版，类或者函数
+*/
+template<typename Key, class Comparator>
+explicit SkipList<Key, Comparator>::SkipList(Comparator comparator):compare_(comparator)
+{
+    /*模版中的任何key，传0都可以*/
+    head_ = newNode(0, kMaxHeight_);
+    for(int i = 0; i < kMaxHeight_; ++i)
+    {
+        head_->setNextNode(i, nullptr);
+    }
+}
+  
+
+template<typename Key, class Comparator>
+typename SkipList<Key, Comparator>::Node * SkipList<Key, Comparator>::findNodeOrGreaterNode(Key key, Node **prev)
+{
+    /**定义prevNode和nextNode，key值在中间，将head_看成无穷小，nullptr看成无穷大*/
+    Node *prevNode = head_;
+    Node *nextNode = nullptr;
+    
+    int i = kMaxHeight_;
+    while(true)
+    {
+        nextNode = prevNode->nextNode(i);
+        if(nextNode == nullptr || compare_(key, nextNode->key) < 0)
         {
-            //assert(next ==  nullptr || i >= 0)
-            next = x->nextNode(i);
-            if(compare_(next->key, key) > 0)
+            prev[i] = prevNode;
+            if(i == 0)
             {
-                x = next;
+                return nextNode;
             }
             else
             {
-                if(prve != nullptr) {prev[i] = x;}
-                if(i == 0)
-                {
-                    return next;
-                }
-                else
-                {
-                    --i;
-                }
+                --i;
             }
         }
-    }
-    
-    Node * newNode(int height, Key key)
-    {
-        /**
-                    这边申请的内存大小为一个node的大小 + height-1 个automic<Node*>的大小
-         automic<Node*>内存空间紧跟着node空间，这两个个内存空间是连续的，
-         其中node结构体中最后一个数据是automic<Node*>数组，且数组大小为1，通过下标访问，如果指针下标为1则数组访问越界，
-            但这时正好指向了申请的内存空间automic<Node*>的首地址。指着，如果指针下标为2则访问的就是automic<Node*>内存空间的第二个地址t
-         通过这种方式，使得内存空间申请次数减少，达到提高效率的作用。
-         
-         只不过这边没有初始化std::atomic<Node*> 只初始化了Node
-         */
-        void * unInitMem = malloc(sizeof(Node) + sizeof(std::atomic<Node*>) * (height - 1));
-        return new (unInitMem) Node(key);
-    }
-    
-    void insert(Key key)
-    {
-        int height = randomInt();
-        Node *prev[kMaxHeight_]; //这边是栈上的内存，所以初始值微nullptr
-        
-        Node * node = newNode(height, key)；
-        Node *nextNode = findBigerNode(key, prev);
-        for(int i = 0; i < height; ++i)
+        else
         {
-            node->setNextNode(i, prev[i]->nextNode(i));
-            prev[i]->setNextNode(i, node);
+            prevNode = nextNode;
         }
     }
+}
+
+template<typename Key, class Comparator>
+typename SkipList<Key, Comparator>::Node * SkipList<Key, Comparator>::Insert(Key key)
+{
+    int height = randomInt();
+    Node* prev[kMaxHeight]; //栈上数据，初始化都为nullptr
     
-    struct Node
+    Node *x = newNode(key, height);
+    
+    findNodeOrGreaterNode(key, prev);
+    
+    for(int i = 0; i < height; ++i)
     {
-        Key const key_;
-        
-        explicit Node(Key key):key_(key) {};
-        
-        Node* nextNode(int i)
-        {
-            assert(i >= 0);
-            return next_[i].load(std::memory_order_acquire);
-        }
-        
-        void setNextNode(int i, Node* pNode)
-        {
-            assert(i >= 0);
-            next_[i].store(pNode, std::memory_order_release);
-        }
-    private :
-        std::atomic<Node*> next_[1];
-    };
-    
-private:
-    Node * head_;
-};
+        x.setNextNode(prev[i]->nextNode(i), i);
+        prev[i].setNextNode(x, i);
+    }
+}
+
+template<typename Key, class Comparator>
+inline int SkipList<Key, Comparator>::randomInt()
+{
+    //临时写为3
+    return 3;
+}
 
 #endif /* SkipList_h */
