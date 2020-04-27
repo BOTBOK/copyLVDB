@@ -10,16 +10,19 @@
 #define SkipList_h
 #include <atomic>
 #include <assert.h>
+#include <random>
+
+#define MAX_HEIGHT (12)
 
 template<typename Key, class Comparator>
 class SkipList
 {
 private:
-    Comparaor compare_;
-    int kMaxHeight_ = 12;
+    Comparator compare_;
+    const int kMaxHeight_;
     
     SkipList(SkipList&) = delete;
-    SkipLIst &operator=(SkipList&) = delete;
+    SkipList &operator=(SkipList&) = delete;
     
     struct Node;
     
@@ -49,6 +52,24 @@ private:
     
 public:
     
+    class Interator
+    {
+        SkipList *list_;
+        Node *node_;
+    public:
+        explicit Interator(SkipList *list):list_(list), node_(list_->head_->nextNode(0)){}
+        
+        void next()
+        {
+            node_ = node_->nextNode(0);
+        }
+        
+        Node* getNode()
+        {
+            return node_;
+        }
+    };
+    
     /**
      初始化函数
      param[in]  比较模版，类或者函数
@@ -59,7 +80,7 @@ public:
      插入key
      param[in] 插入key值
      */
-    void Insert(Key key);
+    void insert(Key key);
 };
 
 template<typename Key, class Comparator>
@@ -100,13 +121,14 @@ typename SkipList<Key, Comparator>::Node * SkipList<Key, Comparator>::newNode(Ke
 param[in]  比较模版，类或者函数
 */
 template<typename Key, class Comparator>
-explicit SkipList<Key, Comparator>::SkipList(Comparator comparator):compare_(comparator)
+SkipList<Key, Comparator>::SkipList(Comparator comparator):compare_(comparator), kMaxHeight_(MAX_HEIGHT)
 {
     /*模版中的任何key，传0都可以*/
     head_ = newNode(0, kMaxHeight_);
+    Node *tmpNode = nullptr;
     for(int i = 0; i < kMaxHeight_; ++i)
     {
-        head_->setNextNode(i, nullptr);
+        head_->setNextNode(tmpNode, i);
     }
 }
   
@@ -118,7 +140,7 @@ typename SkipList<Key, Comparator>::Node * SkipList<Key, Comparator>::findNodeOr
     Node *prevNode = head_;
     Node *nextNode = nullptr;
     
-    int i = kMaxHeight_;
+    int i = kMaxHeight_ - 1;
     while(true)
     {
         nextNode = prevNode->nextNode(i);
@@ -142,10 +164,10 @@ typename SkipList<Key, Comparator>::Node * SkipList<Key, Comparator>::findNodeOr
 }
 
 template<typename Key, class Comparator>
-typename SkipList<Key, Comparator>::Node * SkipList<Key, Comparator>::Insert(Key key)
+void  SkipList<Key, Comparator>::insert(Key key)
 {
     int height = randomInt();
-    Node* prev[kMaxHeight]; //栈上数据，初始化都为nullptr
+    Node* prev[MAX_HEIGHT]; //栈上数据，初始化都为nullptr
     
     Node *x = newNode(key, height);
     
@@ -153,16 +175,17 @@ typename SkipList<Key, Comparator>::Node * SkipList<Key, Comparator>::Insert(Key
     
     for(int i = 0; i < height; ++i)
     {
-        x.setNextNode(prev[i]->nextNode(i), i);
-        prev[i].setNextNode(x, i);
+        x->setNextNode(prev[i]->nextNode(i), i);
+        prev[i]->setNextNode(x, i);
     }
 }
 
 template<typename Key, class Comparator>
 inline int SkipList<Key, Comparator>::randomInt()
 {
-    //临时写为3
-    return 3;
+    std::default_random_engine e;
+    std::uniform_int_distribution<int> u(0, kMaxHeight_);
+    return u(e);
 }
 
 #endif /* SkipList_h */
