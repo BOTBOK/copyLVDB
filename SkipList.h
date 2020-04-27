@@ -2,8 +2,8 @@
 //  SkipList.h
 //  test
 //
-//  Created by 沈佳锋 on 2020/4/25.
-//  Copyright © 2020 沈佳锋. All rights reserved.
+//  Created by oldman on 2020/4/25.
+//  Copyright © 2020 oldman. All rights reserved.
 //
 
 #ifndef SkipList_h
@@ -146,7 +146,8 @@ typename SkipList<Key, Comparator>::Node * SkipList<Key, Comparator>::findNodeOr
         nextNode = prevNode->nextNode(i);
         if(nextNode == nullptr || compare_(key, nextNode->key) < 0)
         {
-            prev[i] = prevNode;
+            if(nullptr != prev) {prev[i] = prevNode;}
+        
             if(i == 0)
             {
                 return nextNode;
@@ -183,9 +184,10 @@ void  SkipList<Key, Comparator>::insert(Key key)
 template<typename Key, class Comparator>
 inline int SkipList<Key, Comparator>::randomInt()
 {
-    std::default_random_engine e;
-    std::uniform_int_distribution<int> u(0, kMaxHeight_);
-    return u(e);
+    std::random_device rd;
+    int index = rd();
+    index = index > 0? index: -index;
+    return index % 11 + 1;
 }
 
 #endif /* SkipList_h */
