@@ -2,8 +2,8 @@
 //  SkipList.h
 //  test
 //
-//  Created by oldman on 2020/4/25.
-//  Copyright © 2020 oldman. All rights reserved.
+//  Created by 沈佳锋 on 2020/4/25.
+//  Copyright © 2020 沈佳锋. All rights reserved.
 //
 
 #ifndef SkipList_h
